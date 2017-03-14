@@ -10,4 +10,4 @@ The functions are not exported as a stand-alone-library but rather just some C-f
 Documentation
 =============
 
-The public functions should be fully documented by GTK-doc comments. There are minimum-examples in the header-files too.
+The public functions should be fully documented by GTK-doc comments. There are minimum-examples in the beginning of the source-files too.

@@ -1,6 +1,6 @@
 /*
  * gemu-glib-util.c
- * This file is contains auxiliary-functions for the development of glib-apps
+ * This file contains auxiliary-functions for the development of glib-apps
  *
  * Copyright (C) 2017 - Emanuel Schmidt
  *
@@ -24,6 +24,34 @@
 
 #include "gemu-glib-util.h"
 
+/*
+ *
+ * Example:
+ *  You have an App-Instance with the name my_app. If you want to see all the
+ *  signals emitted on this app just add
+ *
+ *  gemu_glib_util_connect_to_all_signals (
+ *   G_OBJECT (my_app),
+ *   gemu_glib_util_show_details,
+ *   NULL,
+ *   NULL);
+ *
+ *  right before g_application_run.
+ */
+
+
+/**
+ * gemu_glib_util_connect_to_all_signals:
+ * @object: a #GObject
+ * @emission_hook: a #GSignalEmissionHook
+ * @data: user-data
+ * @data_destroy: a #GDestroyNotify for @data
+ *
+ * Connects the @callback on all signals emited on the @object.
+ *
+ * Returns: (transfer full) (element-type gulong):
+ *     a newly allocated #GList of hook ids
+ */
 GList *gemu_glib_util_connect_to_all_signals (
   GObject *object,
   GSignalEmissionHook emission_hook,
@@ -66,7 +94,18 @@ GList *gemu_glib_util_connect_to_all_signals (
   return return_list;
 }
 
-
+/**
+ * gemu_glib_util_show_details:
+ * @ihint: Signal invocation hint, see #GSignalInvocationHint .
+ * @n_param_values: the number of parameters to the function, including the 
+ *    instance on which the signal was emitted.
+ * @param_values: the instance on which the signal was emitted, followed by the 
+ *    parameters of the emission.
+ * @data: user data associated with the hook.
+ *
+ * This is just an example emission-hook to show the functionality.
+ *
+ */
 gboolean
 gemu_glib_util_show_details (
   GSignalInvocationHint *ihint,
@@ -79,7 +118,7 @@ gemu_glib_util_show_details (
   g_print ("%s::%s::%s (%p) emitted\n",
     g_type_name (G_TYPE_FROM_INSTANCE(object_on_emit)),
     g_signal_name (ihint->signal_id),
-    g_intern_static_string(ihint->detail),
+    g_quark_to_string(ihint->detail),
     object_on_emit);
 }
 

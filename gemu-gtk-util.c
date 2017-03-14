@@ -1,6 +1,6 @@
 /*
  * gemu-gtk-util.c
- * This file is contains auxiliary-functions for the development of gtk+-apps
+ * This file contains auxiliary-functions for the development of gtk+-apps
  *
  * Copyright (C) 2017 - Emanuel Schmidt
  *
@@ -25,6 +25,35 @@
 #include "gemu-gtk-util.h"
 #include "gemu-glib-util.h"
 
+/*
+ *
+ * Example:
+ *  You have an App-Window with the name my_window. If you want to see all the
+ *  signals emitted on this window and all its children just add
+ *
+ *  gemu_gtk_util_signal_connect_to_widget_children (
+ *   GTK_CONTAINER (my_window),
+ *   gemu_glib_util_show_details,
+ *   NULL,
+ *   NULL);
+ *
+ *  right during the instance-initialization.
+ */
+
+
+/**
+ * gemu_gtk_util_signal_connect_to_widget_children:
+ * @container: a #GtkContainer
+ * @emission_hook: a #GSignalEmissionHook
+ * @data: user-data
+ * @data_destroy: a #GDestroyNotify for @data
+ *
+ * Adds identifier and informations on all signals emited on the @widget and its
+ * children.
+ *
+ * Returns: (transfer full) (element-type gulong):
+ *     a newly allocated #GList of all added handler ids
+ */
 GList *gemu_gtk_util_signal_connect_to_widget_children (
   GtkContainer *container,
   GSignalEmissionHook emission_hook,
