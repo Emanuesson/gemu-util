@@ -25,6 +25,8 @@
 #include "gemu-gtk-util.h"
 #include "gemu-glib-util.h"
 
+#include <gdv/gdvaxis.h>
+
 /*
  *
  * Example:
@@ -41,6 +43,28 @@
  */
 
 
+static void
+add_emission_hook_to_children (GtkWidget *child, gpointer data)
+{
+  GList **pt_to_handler_id = data;
+  GList  *local_list = NULL;
+
+  g_print ("CHILD %s (%p)\n",
+    g_type_name (G_TYPE_FROM_INSTANCE(child)),
+    child);
+
+  if (GTK_IS_CONTAINER (child))
+    local_list = 
+      gemu_gtk_util_signal_connect_to_widget_children (
+        GTK_CONTAINER (child), gemu_glib_util_show_details, NULL, NULL);
+  else
+    local_list =
+      gemu_glib_util_connect_to_all_signals (
+        G_OBJECT (child), gemu_glib_util_show_details, NULL, NULL);
+
+  *pt_to_handler_id = g_list_concat (*pt_to_handler_id, local_list);
+}
+
 /**
  * gemu_gtk_util_signal_connect_to_widget_children:
  * @container: a #GtkContainer
@@ -48,7 +72,7 @@
  * @data: user-data
  * @data_destroy: a #GDestroyNotify for @data
  *
- * Adds identifier and informations on all signals emited on the @widget and its
+ * Adds an emission-hook on all signals emited on the @widget and its
  * children.
  *
  * Returns: (transfer full) (element-type gulong):
@@ -60,34 +84,114 @@ GList *gemu_gtk_util_signal_connect_to_widget_children (
   gpointer data,
   GDestroyNotify data_destroy)
 {
-  GList *children =
-    gtk_container_get_children (container);
-  GList *children_start = children;
   GList *return_list = NULL;
+  GList *children, *children_start;
 
   return_list =
     gemu_glib_util_connect_to_all_signals (
       G_OBJECT (container), emission_hook, data, data_destroy);
 
+//  gtk_container_forall (container, add_emission_hook_to_children, &return_list);
+
+  children = gtk_container_get_children (container);
+  children_start = children;
+
   while (children)
   {
+    GList *local_list = NULL;
+
     if (GTK_IS_CONTAINER (children->data))
     {
-  GList *local_list = NULL;
-
   local_list =
     gemu_gtk_util_signal_connect_to_widget_children (
       GTK_CONTAINER (children->data), emission_hook, data, data_destroy);
 
-  return_list = g_list_concat (return_list, local_list);
-
     }
+    else
+    {
+  local_list =
+    gemu_glib_util_connect_to_all_signals (
+      G_OBJECT (children->data), emission_hook, data, data_destroy);
+    }
+
+    return_list = g_list_concat (return_list, local_list);
 
     children = children->next;
   }
-  g_list_free (children);
+  g_list_free (children_start);
 
   return return_list;
+}
+
+
+/**
+ * gemu_gtk_util_signal_use_append_and_remove:
+ * @ihint: Signal invocation hint, see #GSignalInvocationHint .
+ * @n_param_values: the number of parameters to the function, including the 
+ *    instance on which the signal was emitted.
+ * @param_values: the instance on which the signal was emitted, followed by the 
+ *    parameters of the emission.
+ * @data: user data associated with the hook.
+ *
+ * This is just an example emission-hook to show the functionality.
+ *
+ */
+gboolean
+gemu_gtk_util_signal_use_append_and_remove (
+  GSignalInvocationHint *ihint,
+  guint n_param_values,
+  const GValue *param_values,
+  gpointer data)
+{
+  GObject *object_on_emit = g_value_get_object (param_values);
+
+  g_print ("%s::%s::%s (%p) emitted",
+    g_type_name (G_TYPE_FROM_INSTANCE(object_on_emit)),
+    g_signal_name (ihint->signal_id),
+    g_quark_to_string(ihint->detail),
+    object_on_emit);
+
+  if (ihint->signal_id == g_signal_lookup ("add", GTK_TYPE_CONTAINER))
+  {
+    /* I really don't like pointer-arrithmetics. But I have no glue, how to get
+     * to the other array-elements in a more solid way.
+     */
+    GtkWidget *appended_widget = g_value_get_object (param_values + 1);
+    GList *handler_id_list = NULL;
+
+    g_print (" ;add object: %s (%p)\n",
+      g_type_name (G_TYPE_FROM_INSTANCE(appended_widget)),
+      appended_widget);
+
+    if (GTK_IS_CONTAINER (appended_widget))
+    {
+      handler_id_list =
+        gemu_gtk_util_signal_connect_to_widget_children (
+          GTK_CONTAINER (appended_widget),
+          gemu_gtk_util_signal_use_append_and_remove,
+          NULL, NULL);
+    }
+    else
+    {
+      handler_id_list =
+        gemu_glib_util_connect_to_all_signals (
+          G_OBJECT (appended_widget),
+          gemu_glib_util_show_details,
+          NULL, NULL);
+    }
+
+  }
+  else if (ihint->signal_id == g_signal_lookup ("remove", GTK_TYPE_CONTAINER))
+  {
+    GtkWidget *removed_widget = g_value_get_object (param_values + 1);
+
+    g_print (" ;remove object: %s (%p)\n",
+      g_type_name (G_TYPE_FROM_INSTANCE(removed_widget)),
+      removed_widget);
+
+  }
+  else
+    g_print ("\n");
 }
 
 

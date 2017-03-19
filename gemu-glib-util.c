@@ -39,6 +39,33 @@
  *  right before g_application_run.
  */
 
+typedef struct {
+	GSignalEmissionHook hook;
+	gpointer data;
+}_ReconnecData;
+
+static guint
+global_id_list[1000] = { 0 };
+
+static gint compare_ids (const gulong *a, const gulong *b)
+{
+  gulong comp = *a - *b;
+
+  return (gint) comp;
+}
+
+static gboolean
+tmp_info_reconnect (
+  GSignalInvocationHint *ihint,
+  guint n_param_values,
+  const GValue *param_values,
+  gpointer data)
+{
+  _ReconnecData *reconn = data;
+
+  g_signal_add_emission_hook (ihint->signal_id,
+    0, reconn->hook, reconn->data, NULL);
+}
 
 /**
  * gemu_glib_util_connect_to_all_signals:
@@ -47,7 +74,7 @@
  * @data: user-data
  * @data_destroy: a #GDestroyNotify for @data
  *
- * Connects the @callback on all signals emited on the @object.
+ * Connects the @emission_hook on all signals emited on the @object.
  *
  * Returns: (transfer full) (element-type gulong):
  *     a newly allocated #GList of hook ids
@@ -64,6 +91,12 @@ GList *gemu_glib_util_connect_to_all_signals (
   GList *return_list = NULL;
   GType parent_type = G_TYPE_FROM_INSTANCE (object);
 
+
+  _ReconnecData *reconnect_struct = g_new (_ReconnecData, 1);
+
+  reconnect_struct->hook = emission_hook;
+  reconnect_struct->data = data;
+
   /* Iterating over all parent-types */
   do {
     GList *local_connector_ids = NULL;
@@ -74,17 +107,46 @@ GList *gemu_glib_util_connect_to_all_signals (
     /* Iterating over type-specific signals */
     for (i = 0; i < no_of_signal_ids; i++)
     {
-      gulong *conn_id = g_malloc(sizeof (gulong));
+      /* This is necessary, as otherwise signals emission would be doubled.
+       * An alternative is a comparison and search within the return_list;
+       * however this might break some external function-invocations that do not
+       * rely on the same returrn_list
+       */
+      if (!global_id_list[list_of_signal_ids[i]])
+      {
+        GSignalQuery signal_info;
+        gulong *conn_id = g_malloc(sizeof (gulong));
+        gulong *reconn_id = g_malloc(sizeof (gulong));
 
-      /* Any checks for G_SIGNALO_NO_HOOKS-flag are itentionally excluded */
-      *conn_id =
-        g_signal_add_emission_hook (list_of_signal_ids[i],
-          0,
-          emission_hook,
-          data,
-          data_destroy);
+        g_signal_query (list_of_signal_ids[i], &signal_info);
 
-      local_connector_ids = g_list_append (local_connector_ids, conn_id);
+        /* Any checks for G_SIGNALO_NO_HOOKS-flag are itentionally excluded */
+        if (!(signal_info.signal_flags & G_SIGNAL_NO_HOOKS))
+        {
+          *conn_id =
+            g_signal_add_emission_hook (list_of_signal_ids[i],
+              0,
+              emission_hook,
+              data,
+              data_destroy);
+           /* This is necessary, as the emission-hook gets deleted after invoke */
+          *reconn_id =
+            g_signal_add_emission_hook (list_of_signal_ids[i],
+              0,
+              tmp_info_reconnect,
+              reconnect_struct,
+              data_destroy);
+         }
+        else
+          g_print ("SIGNAL %s has flag G_SIGNAL_NO_HOOKS\n",
+                   g_signal_name(list_of_signal_ids[i]));
+
+        global_id_list[list_of_signal_ids[i]] = 1;
+
+        /* TODO: seprarate connector and reconnector-id */
+        local_connector_ids = g_list_append (local_connector_ids, conn_id);
+        local_connector_ids = g_list_append (local_connector_ids, reconn_id);
+      }
     }
 
     return_list = g_list_concat (return_list, local_connector_ids);
@@ -93,6 +155,8 @@ GList *gemu_glib_util_connect_to_all_signals (
 
   return return_list;
 }
+
+
 
 /**
  * gemu_glib_util_show_details:
@@ -121,6 +185,3 @@ gemu_glib_util_show_details (
     g_quark_to_string(ihint->detail),
     object_on_emit);
 }
-
-
-

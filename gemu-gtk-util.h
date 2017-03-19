@@ -35,6 +35,13 @@ GList *gemu_gtk_util_signal_connect_to_widget_children (
   gpointer data,
   GDestroyNotify data_destroy);
 
+gboolean
+gemu_gtk_util_signal_use_append_and_remove (
+  GSignalInvocationHint *ihint,
+  guint n_param_values,
+  const GValue *param_values,
+  gpointer data);
+
 G_END_DECLS
 
 #endif // GEMU_GTK_UTIL_H_INCLUDED
