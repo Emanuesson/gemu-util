@@ -42,6 +42,7 @@
 typedef struct {
 	GSignalEmissionHook hook;
 	gpointer data;
+  GDestroyNotify data_destroy;
 }_ReconnecData;
 
 static guint
@@ -64,7 +65,7 @@ tmp_info_reconnect (
   _ReconnecData *reconn = data;
 
   g_signal_add_emission_hook (ihint->signal_id,
-    0, reconn->hook, reconn->data, NULL);
+    0, reconn->hook, reconn->data, reconn->data);
 }
 
 /**
@@ -96,6 +97,7 @@ GList *gemu_glib_util_connect_to_all_signals (
 
   reconnect_struct->hook = emission_hook;
   reconnect_struct->data = data;
+  reconnect_struct->data_destroy = data_destroy;
 
   /* Iterating over all parent-types */
   do {
@@ -135,7 +137,7 @@ GList *gemu_glib_util_connect_to_all_signals (
               0,
               tmp_info_reconnect,
               reconnect_struct,
-              data_destroy);
+              NULL); /* TODO: memory leak */
          }
         else
           g_print ("SIGNAL %s has flag G_SIGNAL_NO_HOOKS\n",
